@@ -49,6 +49,8 @@ READABLE_EXTENSIONS = {
     ".csv",
     ".sql",
     ".toml",
+    ".cs",
+    ".csproj",
 }
 
 SKIP_FILENAMES = {
