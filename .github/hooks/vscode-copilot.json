@@ -17,6 +17,18 @@
         "type": "command",
         "command": "mempalace hook run --hook precompact --harness vscode-copilot"
       }
+    ],
+    "SubagentStart": [
+      {
+        "type": "command",
+        "command": "mempalace hook run --hook subagent-start --harness vscode-copilot"
+      }
+    ],
+    "SubagentStop": [
+      {
+        "type": "command",
+        "command": "mempalace hook run --hook subagent-stop --harness vscode-copilot"
+      }
     ]
   }
 }
