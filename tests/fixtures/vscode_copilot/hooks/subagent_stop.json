@@ -1,0 +1,11 @@
+{
+  "timestamp": "2026-04-23T08:02:28.983Z",
+  "hook_event_name": "SubagentStop",
+  "session_id": "test-session-0003-0000-0000-000000000000",
+  "transcript_path": "/tmp/mempalace-test-transcripts/test-session-0003.jsonl",
+  "agent_id": "toolcall-0030",
+  "agent_type": "Explore",
+  "stop_hook_active": false,
+  "cwd": "/home/user/projects/myapp"
+}
+

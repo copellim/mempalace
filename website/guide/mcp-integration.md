@@ -35,6 +35,7 @@ Claude calls `mempalace_search` automatically, gets verbatim results, and answer
 MemPalace works with any tool that supports MCP:
 
 - **Claude Code** — native via plugin or manual MCP
+- **VS Code Copilot** — see [VS Code Copilot guide](/guide/vscode-copilot)
 - **OpenClaw** — via official skill, see [OpenClaw Skill](/guide/openclaw)
 - **ChatGPT** — via MCP bridge
 - **Cursor** — native MCP support

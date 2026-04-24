@@ -10,6 +10,7 @@ import pytest
 
 from mempalace.hooks_cli import (
     SAVE_INTERVAL,
+    SUPPORTED_HARNESSES,
     _count_human_messages,
     _extract_recent_messages,
     _get_mine_dir,
@@ -17,14 +18,20 @@ from mempalace.hooks_cli import (
     _maybe_auto_ingest,
     _mempalace_python,
     _mine_already_running,
+    _mine_sync,
     _parse_harness_input,
     _sanitize_session_id,
     _validate_transcript_path,
     hook_stop,
     hook_session_start,
     hook_precompact,
+    hook_subagent_start,
+    hook_subagent_stop,
     run_hook,
 )
+
+VSCODE_HOOKS_DIR = Path(__file__).parent / "fixtures" / "vscode_copilot" / "hooks"
+VSCODE_TRANSCRIPTS_DIR = Path(__file__).parent / "fixtures" / "vscode_copilot" / "transcripts"
 
 
 # --- _mempalace_python ---
@@ -479,6 +486,48 @@ def test_get_mine_dir_empty():
         assert _get_mine_dir("") == ""
 
 
+def test_get_mine_dir_cwd_used_when_no_mempal_dir(tmp_path):
+    """cwd is used when MEMPAL_DIR is unset and transcript_path is empty."""
+    with patch.dict("os.environ", {}, clear=True):
+        assert _get_mine_dir("", str(tmp_path)) == str(tmp_path)
+
+
+def test_get_mine_dir_cwd_prefers_over_transcript(tmp_path):
+    """cwd takes precedence over transcript parent when MEMPAL_DIR is unset."""
+    transcript = tmp_path / "t.jsonl"
+    transcript.write_text("")
+    cwd_dir = tmp_path / "workspace"
+    cwd_dir.mkdir()
+    with patch.dict("os.environ", {}, clear=True):
+        assert _get_mine_dir(str(transcript), str(cwd_dir)) == str(cwd_dir)
+
+
+def test_get_mine_dir_mempal_dir_over_cwd(tmp_path):
+    """MEMPAL_DIR takes precedence over cwd."""
+    mempal_dir = tmp_path / "project"
+    mempal_dir.mkdir()
+    cwd_dir = tmp_path / "workspace"
+    cwd_dir.mkdir()
+    with patch.dict("os.environ", {"MEMPAL_DIR": str(mempal_dir)}):
+        assert _get_mine_dir("", str(cwd_dir)) == str(mempal_dir)
+
+
+def test_get_mine_dir_invalid_cwd_falls_back_to_transcript(tmp_path):
+    """Non-existent cwd falls through to transcript parent."""
+    transcript = tmp_path / "t.jsonl"
+    transcript.write_text("")
+    with patch.dict("os.environ", {}, clear=True):
+        assert _get_mine_dir(str(transcript), "/nonexistent/cwd") == str(tmp_path)
+
+
+def test_get_mine_dir_empty_cwd_falls_back_to_transcript(tmp_path):
+    """Empty cwd falls through to transcript parent."""
+    transcript = tmp_path / "t.jsonl"
+    transcript.write_text("")
+    with patch.dict("os.environ", {}, clear=True):
+        assert _get_mine_dir(str(transcript), "") == str(tmp_path)
+
+
 # --- _parse_harness_input ---
 
 
@@ -760,3 +809,377 @@ def test_stop_hook_rejects_injected_stop_hook_active(tmp_path):
     # The injected value is not "true"/"1"/"yes", so the hook should NOT pass through.
     # Save must have been attempted.
     assert mock_save.called
+
+
+# --- VS Code Copilot harness ---
+
+
+def test_supported_harnesses_includes_vscode_copilot():
+    assert "vscode-copilot" in SUPPORTED_HARNESSES
+
+
+def test_parse_harness_input_vscode_copilot_retains_additive_fields():
+    fixture = json.loads((VSCODE_HOOKS_DIR / "subagent_start.json").read_text())
+    result = _parse_harness_input(fixture, "vscode-copilot")
+    assert result["cwd"] == "/home/user/projects/myapp"
+    assert result["agent_id"] == "toolcall-0030"
+    assert result["agent_type"] == "Explore"
+    assert result["trigger"] == ""
+
+
+def test_parse_harness_input_precompact_retains_trigger():
+    fixture = json.loads((VSCODE_HOOKS_DIR / "precompact.json").read_text())
+    result = _parse_harness_input(fixture, "vscode-copilot")
+    assert result["trigger"] == "auto"
+    assert result["cwd"] == "/home/user/projects/myapp"
+
+
+def test_parse_harness_input_claude_code_additive_fields_default_empty():
+    result = _parse_harness_input({"session_id": "abc"}, "claude-code")
+    assert result["cwd"] == ""
+    assert result["agent_id"] == ""
+    assert result["agent_type"] == ""
+    assert result["trigger"] == ""
+
+
+def test_parse_harness_input_codex_additive_fields_default_empty():
+    result = _parse_harness_input({"session_id": "abc"}, "codex")
+    assert result["cwd"] == ""
+    assert result["agent_id"] == ""
+    assert result["agent_type"] == ""
+    assert result["trigger"] == ""
+
+
+def test_run_hook_session_start_vscode_copilot(tmp_path):
+    fixture = (VSCODE_HOOKS_DIR / "session_start.json").read_text()
+    with patch("sys.stdin", io.StringIO(fixture)):
+        with patch("mempalace.hooks_cli.STATE_DIR", tmp_path):
+            with patch("mempalace.hooks_cli._output") as mock_output:
+                run_hook("session-start", "vscode-copilot")
+    mock_output.assert_called_once_with({})
+
+
+def test_run_hook_stop_vscode_copilot_emits_fail_open(tmp_path):
+    fixture = json.loads((VSCODE_HOOKS_DIR / "stop.json").read_text())
+    fixture["transcript_path"] = ""
+    with patch("sys.stdin", io.StringIO(json.dumps(fixture))):
+        with patch("mempalace.hooks_cli.STATE_DIR", tmp_path):
+            with patch("mempalace.hooks_cli._output") as mock_output:
+                run_hook("stop", "vscode-copilot")
+    mock_output.assert_called_once()
+    emitted = mock_output.call_args[0][0]
+    assert isinstance(emitted, dict)
+
+
+def test_run_hook_precompact_vscode_copilot(tmp_path):
+    fixture = (VSCODE_HOOKS_DIR / "precompact.json").read_text()
+    with patch("sys.stdin", io.StringIO(fixture)):
+        with patch("mempalace.hooks_cli.STATE_DIR", tmp_path):
+            with patch("mempalace.hooks_cli._output") as mock_output:
+                run_hook("precompact", "vscode-copilot")
+    mock_output.assert_called_once_with({})
+
+
+def test_run_hook_subagent_start_vscode_copilot(tmp_path):
+    fixture = (VSCODE_HOOKS_DIR / "subagent_start.json").read_text()
+    with patch("sys.stdin", io.StringIO(fixture)):
+        with patch("mempalace.hooks_cli.STATE_DIR", tmp_path):
+            with patch("mempalace.hooks_cli._output") as mock_output:
+                run_hook("subagent-start", "vscode-copilot")
+    mock_output.assert_called_once_with({})
+
+
+def test_run_hook_subagent_stop_vscode_copilot(tmp_path):
+    fixture = (VSCODE_HOOKS_DIR / "subagent_stop.json").read_text()
+    with patch("sys.stdin", io.StringIO(fixture)):
+        with patch("mempalace.hooks_cli.STATE_DIR", tmp_path):
+            with patch("mempalace.hooks_cli._output") as mock_output:
+                run_hook("subagent-stop", "vscode-copilot")
+    mock_output.assert_called_once_with({})
+
+
+def test_hook_subagent_start_logs_event(tmp_path):
+    fixture = json.loads((VSCODE_HOOKS_DIR / "subagent_start.json").read_text())
+    with patch("mempalace.hooks_cli.STATE_DIR", tmp_path):
+        with patch("mempalace.hooks_cli._output"):
+            with patch("mempalace.hooks_cli._log") as mock_log:
+                hook_subagent_start(fixture, "vscode-copilot")
+    assert mock_log.called
+    logged = mock_log.call_args[0][0]
+    assert "toolcall-0030" in logged
+
+
+def test_hook_subagent_stop_logs_event(tmp_path):
+    fixture = json.loads((VSCODE_HOOKS_DIR / "subagent_stop.json").read_text())
+    with patch("mempalace.hooks_cli.STATE_DIR", tmp_path):
+        with patch("mempalace.hooks_cli._output"):
+            with patch("mempalace.hooks_cli._log") as mock_log:
+                hook_subagent_stop(fixture, "vscode-copilot")
+    assert mock_log.called
+    logged = mock_log.call_args[0][0]
+    assert "toolcall-0030" in logged
+
+
+def test_run_hook_unknown_hook_still_exits_1_with_vscode_harness():
+    with patch("sys.stdin", io.StringIO("{}")):
+        with pytest.raises(SystemExit) as exc_info:
+            run_hook("nonexistent", "vscode-copilot")
+    assert exc_info.value.code == 1
+
+
+def test_run_hook_unknown_harness_exits_1():
+    with patch("sys.stdin", io.StringIO("{}")):
+        with pytest.raises(SystemExit) as exc_info:
+            run_hook("session-start", "unknown-harness")
+    assert exc_info.value.code == 1
+
+
+# --- VS Code transcript: count and extract ---
+
+
+def test_count_human_messages_vscode_canonical():
+    transcript = VSCODE_TRANSCRIPTS_DIR / "with_subagent.jsonl"
+    result = _count_human_messages(str(transcript))
+    assert result == 2
+
+
+def test_count_human_messages_vscode_skips_subagent_prompt():
+    transcript = VSCODE_TRANSCRIPTS_DIR / "with_subagent.jsonl"
+    result = _count_human_messages(str(transcript))
+    assert result == 2
+
+
+def test_extract_recent_messages_vscode_canonical():
+    transcript = VSCODE_TRANSCRIPTS_DIR / "with_subagent.jsonl"
+    messages = _extract_recent_messages(str(transcript))
+    assert len(messages) == 2
+    assert messages[0] == "use a subagent to read a file for me"
+    assert messages[1] == "try again, using a subagent please"
+
+
+def test_extract_recent_messages_vscode_excludes_subagent_prompt():
+    transcript = VSCODE_TRANSCRIPTS_DIR / "with_subagent.jsonl"
+    messages = _extract_recent_messages(str(transcript))
+    assert not any("README.md" in m for m in messages)
+
+
+# --- VS Code transcript: stop hook ---
+
+
+def _write_vscode_transcript(path: Path, canonical_count: int):
+    """Write a VS Code JSONL transcript with the given number of canonical user turns."""
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(
+            json.dumps(
+                {
+                    "type": "session.start",
+                    "data": {"sessionId": "test-session", "producer": "copilot-agent"},
+                    "id": "event-0000",
+                    "parentId": None,
+                }
+            )
+            + "\n"
+        )
+        previous_id = "event-0000"
+        for index in range(canonical_count):
+            event_id = f"evt-user-{index:04d}"
+            f.write(
+                json.dumps(
+                    {
+                        "type": "user.message",
+                        "data": {"content": f"vscode msg {index}", "attachments": []},
+                        "id": event_id,
+                        "parentId": previous_id,
+                    }
+                )
+                + "\n"
+            )
+            previous_id = event_id
+
+
+def test_stop_vscode_transcript_fires_at_interval(tmp_path):
+    transcript = tmp_path / "vscode_session.jsonl"
+    _write_vscode_transcript(transcript, SAVE_INTERVAL)
+    save_result = {"count": SAVE_INTERVAL, "themes": ["vscode", "hooks"]}
+    with patch("mempalace.hooks_cli._save_diary_direct", return_value=save_result) as mock_save:
+        result = _capture_hook_output(
+            hook_stop,
+            {
+                "session_id": "vscode-test",
+                "stop_hook_active": False,
+                "transcript_path": str(transcript),
+            },
+            harness="vscode-copilot",
+            state_dir=tmp_path,
+        )
+    assert "systemMessage" in result
+    assert "memories" in result["systemMessage"]
+    mock_save.assert_called_once_with(str(transcript), "vscode-test", toast=False)
+
+
+def test_stop_vscode_transcript_below_interval_passes_through(tmp_path):
+    transcript = tmp_path / "vscode_session.jsonl"
+    _write_vscode_transcript(transcript, SAVE_INTERVAL - 1)
+    result = _capture_hook_output(
+        hook_stop,
+        {
+            "session_id": "vscode-test",
+            "stop_hook_active": False,
+            "transcript_path": str(transcript),
+        },
+        harness="vscode-copilot",
+        state_dir=tmp_path,
+    )
+    assert result == {}
+
+
+# --- VS Code transcript: precompact hook ---
+
+
+def test_precompact_vscode_transcript_allows_compaction(tmp_path):
+    transcript = tmp_path / "vscode_noisy.jsonl"
+    with open(transcript, "w", encoding="utf-8") as f:
+        f.write(json.dumps({"type": "session.start", "data": {}, "id": "e0", "parentId": None}) + "\n")
+        f.write("not valid json\n")
+        f.write(json.dumps({"type": "user.message", "data": {"content": "hello"}, "id": "e1", "parentId": "e0"}) + "\n")
+        f.write("{broken\n")
+        f.write(json.dumps({"type": "user.message", "data": {"content": "world"}, "id": "e2", "parentId": "e1"}) + "\n")
+    with patch("mempalace.hooks_cli._ingest_transcript") as mock_ingest:
+        with patch("mempalace.hooks_cli._mine_sync") as mock_mine:
+            result = _capture_hook_output(
+                hook_precompact,
+                {"session_id": "vscode-test", "transcript_path": str(transcript)},
+                harness="vscode-copilot",
+                state_dir=tmp_path,
+            )
+    assert result == {}
+    mock_ingest.assert_called_once_with(str(transcript))
+    mock_mine.assert_called_once()
+
+
+# --- cwd threading: auto_ingest and mine_sync ---
+
+
+def test_maybe_auto_ingest_uses_cwd(tmp_path):
+    """_maybe_auto_ingest launches mine targeting cwd when MEMPAL_DIR is unset."""
+    cwd_dir = tmp_path / "workspace"
+    cwd_dir.mkdir()
+    with patch.dict("os.environ", {}, clear=True):
+        with patch("mempalace.hooks_cli.STATE_DIR", tmp_path):
+            with patch("mempalace.hooks_cli._MINE_PID_FILE", tmp_path / "mine.pid"):
+                with patch("mempalace.hooks_cli.subprocess.Popen") as mock_popen:
+                    _maybe_auto_ingest("", cwd=str(cwd_dir))
+                    mock_popen.assert_called_once()
+                    call_args = mock_popen.call_args[0][0]
+                    assert call_args[-1] == str(cwd_dir)
+
+
+def test_mine_sync_uses_cwd(tmp_path):
+    """_mine_sync runs mine targeting cwd when MEMPAL_DIR is unset."""
+    cwd_dir = tmp_path / "workspace"
+    cwd_dir.mkdir()
+    with patch.dict("os.environ", {}, clear=True):
+        with patch("mempalace.hooks_cli.STATE_DIR", tmp_path):
+            with patch("mempalace.hooks_cli.subprocess.run") as mock_run:
+                _mine_sync("", cwd=str(cwd_dir))
+                mock_run.assert_called_once()
+                call_args = mock_run.call_args[0][0]
+                assert call_args[-1] == str(cwd_dir)
+
+
+def test_maybe_auto_ingest_invalid_cwd_fails_open(tmp_path):
+    """_maybe_auto_ingest with non-existent cwd and no transcript does nothing — no crash."""
+    with patch.dict("os.environ", {}, clear=True):
+        with patch("mempalace.hooks_cli.STATE_DIR", tmp_path):
+            with patch("mempalace.hooks_cli.subprocess.Popen") as mock_popen:
+                _maybe_auto_ingest("", cwd="/nonexistent/path")
+                mock_popen.assert_not_called()
+
+
+def test_mine_sync_invalid_cwd_fails_open(tmp_path):
+    """_mine_sync with non-existent cwd and no transcript does nothing — no crash."""
+    with patch.dict("os.environ", {}, clear=True):
+        with patch("mempalace.hooks_cli.STATE_DIR", tmp_path):
+            with patch("mempalace.hooks_cli.subprocess.run") as mock_run:
+                _mine_sync("", cwd="/nonexistent/path")
+                mock_run.assert_not_called()
+
+
+def test_stop_hook_vscode_uses_cwd_for_auto_ingest(tmp_path):
+    """VS Code stop hook threads cwd into the auto-ingest mine directory."""
+    transcript = tmp_path / "vscode_session.jsonl"
+    _write_vscode_transcript(transcript, SAVE_INTERVAL)
+    cwd_dir = tmp_path / "myproject"
+    cwd_dir.mkdir()
+    save_result = {"count": SAVE_INTERVAL, "themes": []}
+    with patch.dict("os.environ", {}, clear=True):
+        with patch("mempalace.hooks_cli._save_diary_direct", return_value=save_result):
+            with patch("mempalace.hooks_cli._ingest_transcript"):
+                with patch("mempalace.hooks_cli._maybe_auto_ingest") as mock_ingest:
+                    _capture_hook_output(
+                        hook_stop,
+                        {
+                            "session_id": "vscode-test",
+                            "stop_hook_active": False,
+                            "transcript_path": str(transcript),
+                            "cwd": str(cwd_dir),
+                        },
+                        harness="vscode-copilot",
+                        state_dir=tmp_path,
+                    )
+    mock_ingest.assert_called_once_with(str(transcript), cwd=str(cwd_dir))
+
+
+def test_precompact_vscode_uses_cwd_for_mine_sync(tmp_path):
+    """VS Code precompact hook threads cwd into the synchronous mine directory."""
+    cwd_dir = tmp_path / "myproject"
+    cwd_dir.mkdir()
+    with patch("mempalace.hooks_cli._ingest_transcript"):
+        with patch("mempalace.hooks_cli._mine_sync") as mock_mine:
+            _capture_hook_output(
+                hook_precompact,
+                {
+                    "session_id": "vscode-test",
+                    "transcript_path": "",
+                    "cwd": str(cwd_dir),
+                },
+                harness="vscode-copilot",
+                state_dir=tmp_path,
+            )
+    mock_mine.assert_called_once_with("", cwd=str(cwd_dir))
+
+
+def test_stop_hook_claude_code_no_cwd_unaffected(tmp_path):
+    """Claude Code stop hook without cwd still runs auto-ingest against transcript dir."""
+    transcript = tmp_path / "t.jsonl"
+    _write_transcript(
+        transcript,
+        [{"message": {"role": "user", "content": f"msg {i}"}} for i in range(SAVE_INTERVAL)],
+    )
+    with patch.dict("os.environ", {}, clear=True):
+        with patch("mempalace.hooks_cli._save_diary_direct", return_value={"count": SAVE_INTERVAL, "themes": []}):
+            with patch("mempalace.hooks_cli._ingest_transcript"):
+                with patch("mempalace.hooks_cli._maybe_auto_ingest") as mock_ingest:
+                    _capture_hook_output(
+                        hook_stop,
+                        {
+                            "session_id": "test",
+                            "stop_hook_active": False,
+                            "transcript_path": str(transcript),
+                        },
+                        harness="claude-code",
+                        state_dir=tmp_path,
+                    )
+    mock_ingest.assert_called_once_with(str(transcript), cwd="")
+
+
+def test_precompact_claude_code_no_cwd_unaffected(tmp_path):
+    """Claude Code precompact without cwd still calls mine_sync with empty cwd."""
+    with patch("mempalace.hooks_cli._mine_sync") as mock_mine:
+        _capture_hook_output(
+            hook_precompact,
+            {"session_id": "test"},
+            harness="claude-code",
+            state_dir=tmp_path,
+        )
+    mock_mine.assert_called_once_with("", cwd="")

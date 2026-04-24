@@ -27,8 +27,8 @@ Local-first AI memory. Verbatim storage, pluggable backend, 96.6% R@5 raw on Lon
 
 MemPalace stores your conversation history as verbatim text and retrieves
 it with semantic search. It does not summarize, extract, or paraphrase.
-The index is structured — people and projects become *wings*, topics
-become *rooms*, and original content lives in *drawers* — so searches
+The index is structured — people and projects become _wings_, topics
+become _rooms_, and original content lives in _drawers_ — so searches
 can be scoped rather than run against a flat corpus.
 
 The retrieval layer is pluggable. The current default is ChromaDB; the
@@ -56,6 +56,7 @@ mempalace init ~/projects/myapp
 # Mine content into the palace
 mempalace mine ~/projects/myapp                    # project files
 mempalace mine ~/.claude/projects/ --mode convos   # Claude Code sessions (scope with --wing per project)
+mempalace mine <conversationdir> --mode convos     # VS Code Copilot sessions (replace <conversationdir> with your VS Code transcript directory)
 
 # Search
 mempalace search "why did we switch to GraphQL"
@@ -77,11 +78,11 @@ per-question result files are committed under `benchmarks/results_*`.
 
 **LongMemEval — retrieval recall (R@5, 500 questions):**
 
-| Mode | R@5 | LLM required |
-|---|---|---|
-| Raw (semantic search, no heuristics, no LLM) | **96.6%** | None |
-| Hybrid v4, held-out 450q (tuned on 50 dev, not seen during training) | **98.4%** | None |
-| Hybrid v4 + LLM rerank (full 500) | ≥99% | Any capable model |
+| Mode                                                                 | R@5       | LLM required      |
+| -------------------------------------------------------------------- | --------- | ----------------- |
+| Raw (semantic search, no heuristics, no LLM)                         | **96.6%** | None              |
+| Hybrid v4, held-out 450q (tuned on 50 dev, not seen during training) | **98.4%** | None              |
+| Hybrid v4 + LLM rerank (full 500)                                    | ≥99%      | Any capable model |
 
 The raw 96.6% requires no API key, no cloud, and no LLM at any stage. The
 hybrid pipeline adds keyword boosting, temporal-proximity boosting, and
@@ -98,12 +99,12 @@ answers, which `benchmarks/BENCHMARKS.md` flags as teaching to the test.
 
 **Other benchmarks (full results in [`benchmarks/BENCHMARKS.md`](benchmarks/BENCHMARKS.md)):**
 
-| Benchmark | Metric | Score | Notes |
-|---|---|---|---|
-| LoCoMo (session, top-10, no rerank) | R@10 | 60.3% | 1,986 questions |
-| LoCoMo (hybrid v5, top-10, no rerank) | R@10 | 88.9% | Same set |
-| ConvoMem (all categories, 250 items) | Avg recall | 92.9% | 50 per category |
-| MemBench (ACL 2025, 8,500 items) | R@5 | 80.3% | All categories |
+| Benchmark                             | Metric     | Score | Notes           |
+| ------------------------------------- | ---------- | ----- | --------------- |
+| LoCoMo (session, top-10, no rerank)   | R@10       | 60.3% | 1,986 questions |
+| LoCoMo (hybrid v5, top-10, no rerank) | R@10       | 88.9% | Same set        |
+| ConvoMem (all categories, 250 items)  | Avg recall | 92.9% | 50 per category |
+| MemBench (ACL 2025, 8,500 items)      | R@5        | 80.3% | All categories  |
 
 We deliberately do not include a side-by-side comparison against Mem0,
 Mastra, Hindsight, Supermemory, or Zep. Those projects publish different
@@ -137,6 +138,8 @@ cross-wing navigation, drawer management, and agent diaries. Installation
 and the full tool list:
 [mempalaceofficial.com/reference/mcp-tools](https://mempalaceofficial.com/reference/mcp-tools.html).
 
+**VS Code Copilot users:** see the dedicated [VS Code Copilot guide](https://mempalaceofficial.com/guide/vscode-copilot.html).
+
 ## Agents
 
 Each specialist agent gets its own wing and diary in the palace.
@@ -146,7 +149,7 @@ system prompt:
 
 ## Auto-save hooks
 
-Two Claude Code hooks save periodically and before context compression:
+Auto-save hooks are available for Claude Code, Codex CLI, and VS Code Copilot. They save periodically and before context compression:
 [mempalaceofficial.com/guide/hooks](https://mempalaceofficial.com/guide/hooks.html).
 
 ---
@@ -177,6 +180,7 @@ PRs welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
 MIT — see [LICENSE](LICENSE).
 
 <!-- Link Definitions -->
+
 [version-shield]: https://img.shields.io/badge/version-3.3.0-4dc9f6?style=flat-square&labelColor=0a0e14
 [release-link]: https://github.com/MemPalace/mempalace/releases
 [python-shield]: https://img.shields.io/badge/python-3.9+-7dd8f8?style=flat-square&labelColor=0a0e14&logo=python&logoColor=7dd8f8
@@ -185,3 +189,4 @@ MIT — see [LICENSE](LICENSE).
 [license-link]: https://github.com/MemPalace/mempalace/blob/main/LICENSE
 [discord-shield]: https://img.shields.io/badge/discord-join-5865F2?style=flat-square&labelColor=0a0e14&logo=discord&logoColor=5865F2
 [discord-link]: https://discord.com/invite/ycTQQCu6kn
+

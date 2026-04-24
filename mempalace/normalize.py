@@ -157,6 +157,10 @@ def _try_normalize_json(content: str) -> Optional[str]:
     if normalized:
         return normalized
 
+    normalized = _try_vscode_copilot_jsonl(content)
+    if normalized:
+        return normalized
+
     try:
         data = json.loads(content)
     except json.JSONDecodeError:
@@ -276,6 +280,63 @@ def _try_codex_jsonl(content: str) -> Optional[str]:
             messages.append(("assistant", text))
 
     if len(messages) >= 2 and has_session_meta:
+        return _messages_to_transcript(messages)
+    return None
+
+
+def _try_vscode_copilot_jsonl(content: str) -> Optional[str]:
+    """VS Code Copilot JSONL sessions."""
+    lines = [line.strip() for line in content.strip().split("\n") if line.strip()]
+    messages = []
+    has_vscode_sentinel = False
+    tool_execution_start_ids: set = set()
+
+    for line in lines:
+        try:
+            entry = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(entry, dict):
+            continue
+
+        event_type = entry.get("type", "")
+        event_id = entry.get("id", "")
+        data = entry.get("data", {})
+        if not isinstance(data, dict):
+            data = {}
+
+        if event_type == "session.start":
+            if data.get("producer") == "copilot-agent":
+                has_vscode_sentinel = True
+            continue
+
+        if event_type == "tool.execution_start":
+            if event_id:
+                tool_execution_start_ids.add(event_id)
+            continue
+
+        if event_type == "user.message":
+            parent_id = entry.get("parentId")
+            if parent_id in tool_execution_start_ids:
+                continue
+            content_text = data.get("content", "")
+            if not isinstance(content_text, str) or not content_text.strip():
+                continue
+            messages.append(("user", content_text.strip()))
+
+        elif event_type == "assistant.message":
+            content_text = data.get("content", "")
+            if not isinstance(content_text, str) or not content_text.strip():
+                continue
+            if messages and messages[-1][0] == "assistant":
+                prev_role, prev_text = messages[-1]
+                messages[-1] = (prev_role, prev_text + "\n" + content_text.strip())
+            else:
+                messages.append(("assistant", content_text.strip()))
+
+    if not has_vscode_sentinel:
+        return None
+    if len(messages) >= 2:
         return _messages_to_transcript(messages)
     return None
 

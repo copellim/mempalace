@@ -15,6 +15,7 @@ mempalace mine ~/projects/myapp
 Each file becomes a drawer, tagged with a wing (project name) and room (topic). Rooms are auto-detected from your folder structure during `mempalace init`.
 
 Options:
+
 ```bash
 # Override wing name
 mempalace mine ~/projects/myapp --wing myapp
@@ -40,12 +41,18 @@ Indexes conversation exports from Claude, ChatGPT, Slack, and other tools. Chunk
 mempalace mine ~/chats/ --mode convos
 ```
 
-Supports five chat formats automatically:
+Supports six chat formats automatically:
+
 - Claude JSON exports
 - ChatGPT exports
 - Slack exports
 - Markdown conversations
 - Plain text transcripts
+- VS Code Copilot exports
+
+::: info VS Code Copilot
+VS Code Copilot conversation exports are supported. Point `--mode convos` at the directory containing your VS Code Copilot transcript files. See the [VS Code Copilot guide](/guide/vscode-copilot) for the full MCP, hooks, and backfill workflow.
+:::
 
 ### General Extraction
 
@@ -56,6 +63,7 @@ mempalace mine ~/chats/ --mode convos --extract general
 ```
 
 Memory types:
+
 - **Decisions** — choices made, options rejected
 - **Preferences** — habits, likes, opinions
 - **Milestones** — sessions completed, goals reached
@@ -95,6 +103,7 @@ mempalace mine ~/chats/helios/ --mode convos --wing helios
 ```
 
 Six months later:
+
 ```bash
 # Project-specific search
 mempalace search "database decision" --wing orion
@@ -114,6 +123,7 @@ mempalace mine ~/.claude/projects/ --mode convos
 ```
 
 Then search across people and projects:
+
 ```bash
 mempalace search "Soren sprint" --wing driftwood
 # → 14 closets: OAuth refactor, dark mode, component library migration
@@ -132,3 +142,4 @@ mempalace mine ~/data/ --agent reviewer
 ```
 
 This is used by [Specialist Agents](/concepts/agents) to partition memories.
+

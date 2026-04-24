@@ -104,32 +104,50 @@ def _count_human_messages(transcript_path: str) -> int:
     if not path.is_file():
         return 0
     count = 0
+    tool_execution_start_ids: set[str] = set()
     try:
         with open(path, encoding="utf-8", errors="replace") as f:
             for line in f:
                 try:
                     entry = json.loads(line)
-                    msg = entry.get("message", {})
-                    if isinstance(msg, dict) and msg.get("role") == "user":
-                        content = msg.get("content", "")
-                        if isinstance(content, str):
-                            if "<command-message>" in content:
-                                continue
-                        elif isinstance(content, list):
-                            text = " ".join(
-                                b.get("text", "") for b in content if isinstance(b, dict)
-                            )
-                            if "<command-message>" in text:
-                                continue
-                        count += 1
-                    # Also handle Codex CLI transcript format
-                    # {"type": "event_msg", "payload": {"type": "user_message", "message": "..."}}
-                    elif entry.get("type") == "event_msg":
-                        payload = entry.get("payload", {})
-                        if isinstance(payload, dict) and payload.get("type") == "user_message":
-                            msg_text = payload.get("message", "")
-                            if isinstance(msg_text, str) and "<command-message>" not in msg_text:
-                                count += 1
+                    entry_type = entry.get("type", "")
+                    # VS Code Copilot: track tool.execution_start IDs to detect subagent-internal turns
+                    if entry_type == "tool.execution_start":
+                        event_id = entry.get("id", "")
+                        if event_id:
+                            tool_execution_start_ids.add(event_id)
+                    # VS Code Copilot: canonical user turn
+                    elif entry_type == "user.message":
+                        if entry.get("parentId") in tool_execution_start_ids:
+                            continue
+                        data = entry.get("data", {})
+                        if not isinstance(data, dict):
+                            continue
+                        content = data.get("content", "")
+                        if isinstance(content, str) and content.strip() and "<command-message>" not in content:
+                            count += 1
+                    else:
+                        msg = entry.get("message", {})
+                        if isinstance(msg, dict) and msg.get("role") == "user":
+                            content = msg.get("content", "")
+                            if isinstance(content, str):
+                                if "<command-message>" in content:
+                                    continue
+                            elif isinstance(content, list):
+                                text = " ".join(
+                                    b.get("text", "") for b in content if isinstance(b, dict)
+                                )
+                                if "<command-message>" in text:
+                                    continue
+                            count += 1
+                        # Also handle Codex CLI transcript format
+                        # {"type": "event_msg", "payload": {"type": "user_message", "message": "..."}}
+                        elif entry_type == "event_msg":
+                            payload = entry.get("payload", {})
+                            if isinstance(payload, dict) and payload.get("type") == "user_message":
+                                msg_text = payload.get("message", "")
+                                if isinstance(msg_text, str) and "<command-message>" not in msg_text:
+                                    count += 1
                 except (json.JSONDecodeError, AttributeError):
                     pass
     except OSError:
@@ -197,11 +215,13 @@ def _output(data: dict):
     sys.stdout.buffer.flush()
 
 
-def _get_mine_dir(transcript_path: str = "") -> str:
+def _get_mine_dir(transcript_path: str = "", cwd: str = "") -> str:
     """Determine directory to mine from MEMPAL_DIR or transcript path."""
     mempal_dir = os.environ.get("MEMPAL_DIR", "")
     if mempal_dir and os.path.isdir(mempal_dir):
         return mempal_dir
+    if cwd and os.path.isdir(cwd):
+        return cwd
     if transcript_path:
         path = Path(transcript_path).expanduser()
         if path.is_file():
@@ -263,9 +283,9 @@ def _spawn_mine(cmd: list) -> None:
     _MINE_PID_FILE.write_text(str(proc.pid))
 
 
-def _maybe_auto_ingest(transcript_path: str = ""):
+def _maybe_auto_ingest(transcript_path: str = "", cwd: str = ""):
     """Run mempalace mine in background if a mine directory is available."""
-    mine_dir = _get_mine_dir(transcript_path)
+    mine_dir = _get_mine_dir(transcript_path, cwd)
     if not mine_dir:
         return
     if _mine_already_running():
@@ -277,9 +297,9 @@ def _maybe_auto_ingest(transcript_path: str = ""):
         pass
 
 
-def _mine_sync(transcript_path: str = ""):
+def _mine_sync(transcript_path: str = "", cwd: str = ""):
     """Run mempalace mine synchronously (for precompact -- data must land first)."""
-    mine_dir = _get_mine_dir(transcript_path)
+    mine_dir = _get_mine_dir(transcript_path, cwd)
     if not mine_dir:
         return
     try:
@@ -314,32 +334,53 @@ def _extract_recent_messages(transcript_path: str, count: int = _RECENT_MSG_COUN
     if not path.is_file():
         return []
     messages = []
+    tool_execution_start_ids: set[str] = set()
     try:
         with open(path, encoding="utf-8", errors="replace") as f:
             for line in f:
                 try:
                     entry = json.loads(line)
-                    # Claude Code format
-                    msg = entry.get("message") or entry.get("event_message") or {}
-                    if isinstance(msg, dict) and msg.get("role") == "user":
-                        content = msg.get("content", "")
-                        if isinstance(content, list):
-                            content = " ".join(
-                                b.get("text", "") for b in content if isinstance(b, dict)
-                            )
+                    entry_type = entry.get("type", "")
+                    # VS Code Copilot: track tool.execution_start IDs to detect subagent-internal turns
+                    if entry_type == "tool.execution_start":
+                        event_id = entry.get("id", "")
+                        if event_id:
+                            tool_execution_start_ids.add(event_id)
+                    # VS Code Copilot: canonical user turn
+                    elif entry_type == "user.message":
+                        if entry.get("parentId") in tool_execution_start_ids:
+                            continue
+                        data = entry.get("data", {})
+                        if not isinstance(data, dict):
+                            continue
+                        content = data.get("content", "")
                         if not isinstance(content, str) or not content.strip():
                             continue
                         if "<command-message>" in content or "<system-reminder>" in content:
                             continue
                         messages.append(content.strip()[:200])
-                    # Codex CLI format
-                    elif entry.get("type") == "event_msg":
-                        payload = entry.get("payload", {})
-                        if isinstance(payload, dict) and payload.get("type") == "user_message":
-                            text = payload.get("message", "")
-                            if isinstance(text, str) and text.strip():
-                                if "<command-message>" not in text:
-                                    messages.append(text.strip()[:200])
+                    else:
+                        # Claude Code format
+                        msg = entry.get("message") or entry.get("event_message") or {}
+                        if isinstance(msg, dict) and msg.get("role") == "user":
+                            content = msg.get("content", "")
+                            if isinstance(content, list):
+                                content = " ".join(
+                                    b.get("text", "") for b in content if isinstance(b, dict)
+                                )
+                            if not isinstance(content, str) or not content.strip():
+                                continue
+                            if "<command-message>" in content or "<system-reminder>" in content:
+                                continue
+                            messages.append(content.strip()[:200])
+                        # Codex CLI format
+                        elif entry_type == "event_msg":
+                            payload = entry.get("payload", {})
+                            if isinstance(payload, dict) and payload.get("type") == "user_message":
+                                text = payload.get("message", "")
+                                if isinstance(text, str) and text.strip():
+                                    if "<command-message>" not in text:
+                                        messages.append(text.strip()[:200])
                 except (json.JSONDecodeError, AttributeError):
                     pass
     except OSError:
@@ -466,7 +507,7 @@ def _ingest_transcript(transcript_path: str):
         pass
 
 
-SUPPORTED_HARNESSES = {"claude-code", "codex"}
+SUPPORTED_HARNESSES = {"claude-code", "codex", "vscode-copilot"}
 
 
 def _parse_harness_input(data: dict, harness: str) -> dict:
@@ -478,6 +519,10 @@ def _parse_harness_input(data: dict, harness: str) -> dict:
         "session_id": _sanitize_session_id(str(data.get("session_id", "unknown"))),
         "stop_hook_active": data.get("stop_hook_active", False),
         "transcript_path": str(data.get("transcript_path", "")),
+        "cwd": str(data.get("cwd", "")),
+        "agent_id": str(data.get("agent_id", "")),
+        "agent_type": str(data.get("agent_type", "")),
+        "trigger": str(data.get("trigger", "")),
     }
 
 
@@ -487,6 +532,7 @@ def hook_stop(data: dict, harness: str):
     session_id = parsed["session_id"]
     stop_hook_active = parsed["stop_hook_active"]
     transcript_path = parsed["transcript_path"]
+    cwd = parsed["cwd"]
 
     # If already in a block-mode save cycle, let through (infinite-loop prevention).
     # Silent mode saves directly without returning {"decision":"block"}, so there's
@@ -549,7 +595,7 @@ def hook_stop(data: dict, harness: str):
             if transcript_path:
                 result = _save_diary_direct(transcript_path, session_id, toast=toast)
                 _ingest_transcript(transcript_path)
-            _maybe_auto_ingest(transcript_path)
+            _maybe_auto_ingest(transcript_path, cwd=cwd)
             # Only advance save marker after successful save
             count = result.get("count", 0)
             if count > 0:
@@ -579,7 +625,7 @@ def hook_stop(data: dict, harness: str):
                 pass
             if transcript_path:
                 _ingest_transcript(transcript_path)
-            _maybe_auto_ingest(transcript_path)
+            _maybe_auto_ingest(transcript_path, cwd=cwd)
             _output({"decision": "block", "reason": STOP_BLOCK_REASON})
     else:
         _output({})
@@ -604,6 +650,7 @@ def hook_precompact(data: dict, harness: str):
     parsed = _parse_harness_input(data, harness)
     session_id = parsed["session_id"]
     transcript_path = parsed["transcript_path"]
+    cwd = parsed["cwd"]
 
     _log(f"PRE-COMPACT triggered for session {session_id}")
 
@@ -612,12 +659,32 @@ def hook_precompact(data: dict, harness: str):
         _ingest_transcript(transcript_path)
 
     # Mine synchronously so data lands before compaction proceeds
-    _mine_sync(transcript_path)
+    _mine_sync(transcript_path, cwd=cwd)
 
     _output({})
 
 
-def run_hook(hook_name: str, harness: str):
+def hook_subagent_start(data: dict, harness: str) -> None:
+    """Subagent start hook: log lifecycle event and pass through."""
+    parsed = _parse_harness_input(data, harness)
+    session_id = parsed["session_id"]
+    agent_id = parsed["agent_id"]
+    agent_type = parsed["agent_type"]
+    _log(f"SUBAGENT START session={session_id} agent_id={agent_id} agent_type={agent_type}")
+    _output({})
+
+
+def hook_subagent_stop(data: dict, harness: str) -> None:
+    """Subagent stop hook: log lifecycle event and pass through."""
+    parsed = _parse_harness_input(data, harness)
+    session_id = parsed["session_id"]
+    agent_id = parsed["agent_id"]
+    agent_type = parsed["agent_type"]
+    _log(f"SUBAGENT STOP session={session_id} agent_id={agent_id} agent_type={agent_type}")
+    _output({})
+
+
+def run_hook(hook_name: str, harness: str) -> None:
     """Main entry point: read stdin JSON, dispatch to hook handler."""
     try:
         data = json.load(sys.stdin)
@@ -629,6 +696,8 @@ def run_hook(hook_name: str, harness: str):
         "session-start": hook_session_start,
         "stop": hook_stop,
         "precompact": hook_precompact,
+        "subagent-start": hook_subagent_start,
+        "subagent-stop": hook_subagent_stop,
     }
 
     handler = hooks.get(hook_name)

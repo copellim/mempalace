@@ -1,15 +1,37 @@
 # Auto-Save Hooks
 
-Two hooks for Claude Code and Codex that automatically save memories during work. No manual "save" commands needed.
+Hooks for Claude Code, Codex, and VS Code Copilot that automatically save memories during work. No manual "save" commands needed.
 
 ## What They Do
 
-| Hook | When It Fires | What Happens |
-|------|--------------|-------------|
-| **Save Hook** | Every 15 human messages | Blocks the AI, tells it to save key topics/decisions/quotes to the palace |
-| **PreCompact Hook** | Right before context compaction | Emergency save — forces the AI to save everything before losing context |
+| Hook                | When It Fires                   | What Happens                                                             |
+| ------------------- | ------------------------------- | ------------------------------------------------------------------------ |
+| **Stop Hook**       | At the end of each turn         | Ingests the conversation transcript into the palace                      |
+| **PreCompact Hook** | Right before context compaction | Emergency ingest — saves everything before the context window is trimmed |
 
-The AI does the actual filing — it knows the conversation context, so it classifies memories into the right wings/halls/closets. The hooks just tell it **when** to save.
+The hooks call `mempalace hook run` locally and ingest the conversation transcript. Both are fail-open: a local error never blocks the chat.
+
+## Install — VS Code Copilot
+
+Copy `.github/hooks/vscode-copilot.json` from the MemPalace repo into your own workspace at `.github/hooks/vscode-copilot.json`:
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      { "type": "command", "command": "mempalace hook run --hook session-start --harness vscode-copilot" }
+    ],
+    "Stop": [{ "type": "command", "command": "mempalace hook run --hook stop --harness vscode-copilot" }],
+    "PreCompact": [{ "type": "command", "command": "mempalace hook run --hook precompact --harness vscode-copilot" }]
+  }
+}
+```
+
+VS Code Copilot reads hook definitions from `.github/hooks/` when hooks are enabled in your settings. The `Stop` hook fires after each turn and ingests the transcript; `PreCompact` fires before context compaction and ensures nothing is lost. Both commands run locally and are fail-open — if `mempalace` exits with an error, VS Code continues normally.
+
+::: tip Full setup
+See the [VS Code Copilot guide](/guide/vscode-copilot) for initial installation, backfill, and configuration.
+:::
 
 ## Install — Claude Code
 
@@ -18,26 +40,35 @@ Add to `.claude/settings.local.json`:
 ```json
 {
   "hooks": {
-    "Stop": [{
-      "matcher": "*",
-      "hooks": [{
-        "type": "command",
-        "command": "/absolute/path/to/hooks/mempal_save_hook.sh",
-        "timeout": 30
-      }]
-    }],
-    "PreCompact": [{
-      "hooks": [{
-        "type": "command",
-        "command": "/absolute/path/to/hooks/mempal_precompact_hook.sh",
-        "timeout": 30
-      }]
-    }]
+    "Stop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/absolute/path/to/hooks/mempal_save_hook.sh",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/absolute/path/to/hooks/mempal_precompact_hook.sh",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
   }
 }
 ```
 
 Make them executable:
+
 ```bash
 chmod +x hooks/mempal_save_hook.sh hooks/mempal_precompact_hook.sh
 ```
@@ -48,16 +79,20 @@ Add to `.codex/hooks.json`:
 
 ```json
 {
-  "Stop": [{
-    "type": "command",
-    "command": "/absolute/path/to/hooks/mempal_save_hook.sh",
-    "timeout": 30
-  }],
-  "PreCompact": [{
-    "type": "command",
-    "command": "/absolute/path/to/hooks/mempal_precompact_hook.sh",
-    "timeout": 30
-  }]
+  "Stop": [
+    {
+      "type": "command",
+      "command": "/absolute/path/to/hooks/mempal_save_hook.sh",
+      "timeout": 30
+    }
+  ],
+  "PreCompact": [
+    {
+      "type": "command",
+      "command": "/absolute/path/to/hooks/mempal_precompact_hook.sh",
+      "timeout": 30
+    }
+  ]
 }
 ```
 
@@ -104,6 +139,7 @@ cat ~/.mempalace/hook_state/hook.log
 ```
 
 Example output:
+
 ```
 [14:30:15] Session abc123: 12 exchanges, 12 since last save
 [14:35:22] Session abc123: 15 exchanges, 15 since last save
@@ -114,3 +150,4 @@ Example output:
 ## Cost
 
 **Zero extra tokens.** The hooks are bash scripts that run locally. They don't call any API. The only "cost" is a few seconds of the AI organizing memories at each checkpoint.
+

@@ -6,19 +6,20 @@ AI memory system. Store everything, find anything. Local, free, no API key.
 
 ## Slash Commands
 
-| Command              | Description                    |
-|----------------------|--------------------------------|
-| /mempalace:init      | Install and set up MemPalace   |
-| /mempalace:search    | Search your memories           |
-| /mempalace:mine      | Mine projects and conversations|
-| /mempalace:status    | Palace overview and stats      |
-| /mempalace:help      | This help message              |
+| Command           | Description                     |
+| ----------------- | ------------------------------- |
+| /mempalace:init   | Install and set up MemPalace    |
+| /mempalace:search | Search your memories            |
+| /mempalace:mine   | Mine projects and conversations |
+| /mempalace:status | Palace overview and stats       |
+| /mempalace:help   | This help message               |
 
 ---
 
 ## MCP Tools (19)
 
 ### Palace (read)
+
 - mempalace_status -- Palace status and stats
 - mempalace_list_wings -- List all wings
 - mempalace_list_rooms -- List rooms in a wing
@@ -28,10 +29,12 @@ AI memory system. Store everything, find anything. Local, free, no API key.
 - mempalace_get_aaak_spec -- Get the AAAK specification
 
 ### Palace (write)
+
 - mempalace_add_drawer -- Add a new memory (drawer)
 - mempalace_delete_drawer -- Delete a memory (drawer)
 
 ### Knowledge Graph
+
 - mempalace_kg_query -- Query the knowledge graph
 - mempalace_kg_add -- Add a knowledge graph entry
 - mempalace_kg_invalidate -- Invalidate a knowledge graph entry
@@ -39,11 +42,13 @@ AI memory system. Store everything, find anything. Local, free, no API key.
 - mempalace_kg_stats -- Knowledge graph statistics
 
 ### Navigation
+
 - mempalace_traverse -- Traverse the palace structure
 - mempalace_find_tunnels -- Find cross-wing connections
 - mempalace_graph_stats -- Graph connectivity statistics
 
 ### Agent Diary
+
 - mempalace_diary_write -- Write a diary entry
 - mempalace_diary_read -- Read diary entries
 
@@ -53,7 +58,7 @@ AI memory system. Store everything, find anything. Local, free, no API key.
 
     mempalace init <dir>                  Initialize a new palace
     mempalace mine <dir>                  Mine a project (default mode)
-    mempalace mine <dir> --mode convos    Mine conversation exports
+    mempalace mine <dir> --mode convos    Mine conversation exports (Claude, ChatGPT, Slack, VS Code Copilot)
     mempalace search "query"              Search your memories
     mempalace split <dir>                 Split large transcript files
     mempalace wake-up                     Load palace into context
@@ -104,3 +109,4 @@ metadata. No cloud services or API keys required.
 1. /mempalace:init -- Set up your palace
 2. /mempalace:mine -- Mine a project or conversation
 3. /mempalace:search -- Find what you stored
+

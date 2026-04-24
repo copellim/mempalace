@@ -4,7 +4,7 @@ MemPalace — Give your AI a memory. No API key required.
 
 Two ways to ingest:
   Projects:      mempalace mine ~/projects/my_app          (code, docs, notes)
-  Conversations: mempalace mine <convo-dir> --mode convos     (Claude Code, Claude.ai, ChatGPT, Slack exports)
+  Conversations: mempalace mine <convo-dir> --mode convos     (Claude Code, Claude.ai, ChatGPT, Slack, VS Code Copilot exports)
 
 Same palace. Same search. Different ingest strategies.
 
@@ -386,6 +386,7 @@ def cmd_mcp(args):
         print(f"  {base_server_cmd} --palace /path/to/palace")
 
 
+
 def cmd_compress(args):
     """Compress drawers in a wing using AAAK Dialect."""
     from .backends.chroma import ChromaBackend
@@ -559,7 +560,7 @@ def main():
         "--mode",
         choices=["projects", "convos"],
         default="projects",
-        help="Ingest mode: 'projects' for code/docs (default), 'convos' for chat exports",
+        help="Ingest mode: 'projects' for code/docs (default), 'convos' for chat exports (Claude Code, Claude.ai, ChatGPT, Slack, VS Code Copilot)",
     )
     p_mine.add_argument("--wing", default=None, help="Wing name (default: directory name)")
     p_mine.add_argument(
@@ -656,13 +657,13 @@ def main():
     p_hook_run.add_argument(
         "--hook",
         required=True,
-        choices=["session-start", "stop", "precompact"],
+        choices=["session-start", "stop", "precompact", "subagent-start", "subagent-stop"],
         help="Hook name to run",
     )
     p_hook_run.add_argument(
         "--harness",
         required=True,
-        choices=["claude-code", "codex"],
+        choices=["claude-code", "codex", "vscode-copilot"],
         help="Harness type (determines stdin JSON format)",
     )
 

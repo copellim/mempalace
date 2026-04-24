@@ -1,15 +1,42 @@
-# MemPalace Hooks — Auto-Save for Terminal AI Tools
+# MemPalace Hooks — Auto-Save for AI Tools
 
-These hook scripts make MemPalace save automatically. No manual "save" commands needed.
+MemPalace hooks make your palace save automatically. No manual "save" commands needed.
+
+> **Surface guide**: The shell scripts (`mempal_save_hook.sh`, `mempal_precompact_hook.sh`) are for **Claude Code** and **Codex CLI**. **VS Code Copilot** uses a JSON hook template instead — see [Install — VS Code Copilot](#install--vs-code-copilot) below.
 
 ## What They Do
 
-| Hook | When It Fires | What Happens |
-|------|--------------|-------------|
-| **Save Hook** | Every 15 human messages | Auto-mines transcript (tool output included), then blocks the AI to save topics/decisions/quotes |
+| Hook                | When It Fires                   | What Happens                                                                                        |
+| ------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------- |
+| **Save Hook**       | Every 15 human messages         | Auto-mines transcript (tool output included), then blocks the AI to save topics/decisions/quotes    |
 | **PreCompact Hook** | Right before context compaction | Auto-mines transcript, then emergency save — forces the AI to save EVERYTHING before losing context |
 
 **Two-layer capture:** Hooks auto-mine the JSONL transcript directly into the palace (capturing raw tool output — Bash results, search findings, build errors). They also block the AI with a reason message telling it to save verbatim tool output and key context. Belt and suspenders — tool output gets stored even if the AI summarizes instead of quoting.
+
+## Install — VS Code Copilot
+
+Copy `.github/hooks/vscode-copilot.json` from this repo into your workspace's `.github/hooks/` directory:
+
+```bash
+mkdir -p .github/hooks
+cp /path/to/mempalace/.github/hooks/vscode-copilot.json .github/hooks/vscode-copilot.json
+```
+
+The file registers three hooks with the VS Code Copilot harness:
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      { "type": "command", "command": "mempalace hook run --hook session-start --harness vscode-copilot" }
+    ],
+    "Stop": [{ "type": "command", "command": "mempalace hook run --hook stop --harness vscode-copilot" }],
+    "PreCompact": [{ "type": "command", "command": "mempalace hook run --hook precompact --harness vscode-copilot" }]
+  }
+}
+```
+
+**Stop** fires at the end of each conversation turn. **PreCompact** fires before context compaction. Both hooks are fail-open — if `mempalace` is not on `PATH` or the palace is unavailable, the hook exits cleanly and the conversation continues normally.
 
 ## Install — Claude Code
 
@@ -18,26 +45,35 @@ Add to `.claude/settings.local.json`:
 ```json
 {
   "hooks": {
-    "Stop": [{
-      "matcher": "*",
-      "hooks": [{
-        "type": "command",
-        "command": "/absolute/path/to/hooks/mempal_save_hook.sh",
-        "timeout": 30
-      }]
-    }],
-    "PreCompact": [{
-      "hooks": [{
-        "type": "command",
-        "command": "/absolute/path/to/hooks/mempal_precompact_hook.sh",
-        "timeout": 30
-      }]
-    }]
+    "Stop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/absolute/path/to/hooks/mempal_save_hook.sh",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/absolute/path/to/hooks/mempal_precompact_hook.sh",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
   }
 }
 ```
 
 Make them executable:
+
 ```bash
 chmod +x hooks/mempal_save_hook.sh hooks/mempal_precompact_hook.sh
 ```
@@ -48,16 +84,20 @@ Add to `.codex/hooks.json`:
 
 ```json
 {
-  "Stop": [{
-    "type": "command",
-    "command": "/absolute/path/to/hooks/mempal_save_hook.sh",
-    "timeout": 30
-  }],
-  "PreCompact": [{
-    "type": "command",
-    "command": "/absolute/path/to/hooks/mempal_precompact_hook.sh",
-    "timeout": 30
-  }]
+  "Stop": [
+    {
+      "type": "command",
+      "command": "/absolute/path/to/hooks/mempal_save_hook.sh",
+      "timeout": 30
+    }
+  ],
+  "PreCompact": [
+    {
+      "type": "command",
+      "command": "/absolute/path/to/hooks/mempal_precompact_hook.sh",
+      "timeout": 30
+    }
+  ]
 }
 ```
 
@@ -130,11 +170,13 @@ No counting needed — compaction always warrants a save. The auto-mine captures
 ## Debugging
 
 Check the hook log:
+
 ```bash
 cat ~/.mempalace/hook_state/hook.log
 ```
 
 Example output:
+
 ```
 [14:30:15] Session abc123: 12 exchanges, 12 since last save
 [14:35:22] Session abc123: 15 exchanges, 15 since last save
@@ -170,8 +212,15 @@ mempalace mine ~/.claude/projects/ --mode convos
 This scans all JSONL transcripts from previous sessions and files them into the `conversations` wing. On a typical developer machine with months of history, this can yield 50K–200K drawers.
 
 For Codex CLI sessions:
+
 ```bash
 mempalace mine ~/.codex/sessions/ --mode convos
+```
+
+For VS Code Copilot sessions, point the command at your conversation transcript directory:
+
+```bash
+mempalace mine <conversationdir> --mode convos --wing vscode-copilot
 ```
 
 This only needs to be done once — after that, the hooks auto-mine each session as you go.
@@ -179,3 +228,4 @@ This only needs to be done once — after that, the hooks auto-mine each session
 ## Cost
 
 **Zero extra tokens.** The hooks notify the AI that saves happened in the background — the AI doesn't need to write anything in the chat. All filing is handled automatically. Previous versions asked the AI to write diary entries and drawer content in the chat window, which cost ~$1/session in retransmitted tokens.
+

@@ -1,0 +1,9 @@
+{
+  "timestamp": "2026-04-23T04:21:21.773Z",
+  "hook_event_name": "Stop",
+  "session_id": "test-session-0001-0000-0000-000000000000",
+  "transcript_path": "/tmp/mempalace-test-transcripts/test-session-0001.jsonl",
+  "stop_hook_active": false,
+  "cwd": "/home/user/projects/myapp"
+}
+

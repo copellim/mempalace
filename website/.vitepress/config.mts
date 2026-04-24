@@ -1,33 +1,47 @@
-import { defineConfig } from 'vitepress'
-import { withMermaid } from 'vitepress-plugin-mermaid'
+import { defineConfig } from 'vitepress';
+import { withMermaid } from 'vitepress-plugin-mermaid';
 
 function normalizeBase(base?: string): string {
   if (!base || base === '/') {
-    return '/'
+    return '/';
   }
 
-  return base.endsWith('/') ? base : `${base}/`
+  return base.endsWith('/') ? base : `${base}/`;
 }
 
-const docsBase = normalizeBase(process.env.DOCS_BASE || '/')
-const editBranch = process.env.DOCS_EDIT_BRANCH || 'main'
+const docsBase = normalizeBase(process.env.DOCS_BASE || '/');
+const editBranch = process.env.DOCS_EDIT_BRANCH || 'main';
 
 export default withMermaid(
   defineConfig({
     title: 'MemPalace',
-    description: 'Give your AI a memory. Local-first storage and retrieval for AI workflows, with benchmark results and MCP tooling.',
+    description:
+      'Give your AI a memory. Local-first storage and retrieval for AI workflows, with benchmark results and MCP tooling.',
     base: docsBase,
 
     head: [
       ['link', { rel: 'icon', href: `${docsBase}mempalace_logo.png` }],
       ['link', { rel: 'preconnect', href: 'https://fonts.googleapis.com' }],
       ['link', { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' }],
-      ['link', { href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&family=Geist:wght@300;400;500;600&display=swap', rel: 'stylesheet' }],
+      [
+        'link',
+        {
+          href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&family=Geist:wght@300;400;500;600&display=swap',
+          rel: 'stylesheet',
+        },
+      ],
       ['meta', { property: 'og:title', content: 'MemPalace — AI Memory System' }],
-      ['meta', { property: 'og:description', content: '96.6% LongMemEval recall. Zero API calls. Local, free, open source.' }],
+      [
+        'meta',
+        { property: 'og:description', content: '96.6% LongMemEval recall. Zero API calls. Local, free, open source.' },
+      ],
       ['meta', { property: 'og:image', content: `${docsBase}mempalace_logo.png` }],
       ['script', { async: '', src: 'https://www.googletagmanager.com/gtag/js?id=G-PPQE4Z7P1K' }],
-      ['script', {}, `window.dataLayer = window.dataLayer || [];\nfunction gtag(){dataLayer.push(arguments);}\ngtag('js', new Date());\ngtag('config', 'G-PPQE4Z7P1K');`],
+      [
+        'script',
+        {},
+        `window.dataLayer = window.dataLayer || [];\nfunction gtag(){dataLayer.push(arguments);}\ngtag('js', new Date());\ngtag('config', 'G-PPQE4Z7P1K');`,
+      ],
     ],
 
     themeConfig: {
@@ -49,6 +63,7 @@ export default withMermaid(
               { text: 'Mining Your Data', link: '/guide/mining' },
               { text: 'Searching Memories', link: '/guide/searching' },
               { text: 'MCP Integration', link: '/guide/mcp-integration' },
+              { text: 'VS Code Copilot', link: '/guide/vscode-copilot' },
               { text: 'Claude Code Plugin', link: '/guide/claude-code' },
               { text: 'Gemini CLI', link: '/guide/gemini-cli' },
               { text: 'OpenClaw Skill', link: '/guide/openclaw' },
@@ -110,5 +125,6 @@ export default withMermaid(
     mermaid: {
       theme: 'dark',
     },
-  })
-)
+  }),
+);
+

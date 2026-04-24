@@ -1,0 +1,23 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "mempalace hook run --hook session-start --harness vscode-copilot"
+      }
+    ],
+    "Stop": [
+      {
+        "type": "command",
+        "command": "mempalace hook run --hook stop --harness vscode-copilot"
+      }
+    ],
+    "PreCompact": [
+      {
+        "type": "command",
+        "command": "mempalace hook run --hook precompact --harness vscode-copilot"
+      }
+    ]
+  }
+}
+

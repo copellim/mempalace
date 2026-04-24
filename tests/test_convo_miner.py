@@ -158,3 +158,37 @@ def test_mine_convos_rebuilds_stale_drawers_after_schema_bump(capsys):
         del col, client
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+def test_vscode_copilot_backfill_regression():
+    fixture_dir = Path(__file__).parent / "fixtures" / "vscode_copilot" / "transcripts"
+    fixture_files = list(fixture_dir.glob("*.jsonl"))
+    assert fixture_files, "committed VS Code transcript fixtures must exist"
+
+    source_dir = tempfile.mkdtemp()
+    try:
+        for fixture_file in fixture_files:
+            shutil.copy(fixture_file, source_dir)
+
+        palace_path = os.path.join(source_dir, "palace")
+        mine_convos(source_dir, palace_path, wing="vscode-fixture-test")
+
+        client = chromadb.PersistentClient(path=palace_path)
+        col = client.get_collection("mempalace_drawers")
+        assert col.count() >= 1, "mining VS Code fixtures must produce stored drawers"
+
+        all_entries = col.get()
+        resolved_source_dir = str(Path(source_dir).resolve())
+        source_files = [meta.get("source_file", "") for meta in all_entries["metadatas"]]
+        assert any(
+            resolved_source_dir in source_file for source_file in source_files
+        ), "filed metadata must reference the copied fixture paths, not the checked-in fixture tree"
+
+        fixture_root = str(fixture_dir.resolve())
+        assert all(
+            fixture_root not in source_file for source_file in source_files
+        ), "filed metadata must not reference the checked-in fixture directory"
+
+        del col, client
+    finally:
+        shutil.rmtree(source_dir, ignore_errors=True)

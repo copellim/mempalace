@@ -89,4 +89,5 @@ It calls `mempalace_search` automatically, gets verbatim results, and answers yo
 
 - [Mining Your Data](/guide/mining) — deep dive into mining modes
 - [MCP Integration](/guide/mcp-integration) — connect to Claude, ChatGPT, Cursor, Gemini
+- [VS Code Copilot](/guide/vscode-copilot) — connect MemPalace to GitHub Copilot in VS Code
 - [The Palace](/concepts/the-palace) — understand wings, rooms, halls, and tunnels

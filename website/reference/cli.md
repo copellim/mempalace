@@ -14,7 +14,7 @@ mempalace init .                     # initialize from the current directory
 ```
 
 | Option  | Description                                                                  |
-|---------|------------------------------------------------------------------------------|
+| ------- | ---------------------------------------------------------------------------- |
 | `<dir>` | **Required.** Project directory to scan. Pass `.` for the current directory. |
 | `--yes` | Auto-accept all detected entities                                            |
 
@@ -39,17 +39,17 @@ mempalace mine <dir> --mode convos --extract general
 mempalace mine <dir> --wing myapp
 ```
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `<dir>` | — | Directory to mine |
-| `--mode` | `projects` | `projects` for code/docs, `convos` for chat exports |
-| `--wing` | directory name | Wing name override |
-| `--agent` | `mempalace` | Agent name tag |
-| `--limit` | `0` (all) | Max files to process |
-| `--dry-run` | — | Preview without filing |
-| `--extract` | `exchange` | `exchange` or `general` (for convos mode) |
-| `--no-gitignore` | — | Don't respect .gitignore |
-| `--include-ignored` | — | Always scan these paths even if ignored |
+| Option              | Default        | Description                                                                                                   |
+| ------------------- | -------------- | ------------------------------------------------------------------------------------------------------------- |
+| `<dir>`             | —              | Directory to mine                                                                                             |
+| `--mode`            | `projects`     | `projects` for code/docs, `convos` for chat exports (Claude Code, Claude.ai, ChatGPT, Slack, VS Code Copilot) |
+| `--wing`            | directory name | Wing name override                                                                                            |
+| `--agent`           | `mempalace`    | Agent name tag                                                                                                |
+| `--limit`           | `0` (all)      | Max files to process                                                                                          |
+| `--dry-run`         | —              | Preview without filing                                                                                        |
+| `--extract`         | `exchange`     | `exchange` or `general` (for convos mode)                                                                     |
+| `--no-gitignore`    | —              | Don't respect .gitignore                                                                                      |
+| `--include-ignored` | —              | Always scan these paths even if ignored                                                                       |
 
 ## `mempalace search`
 
@@ -62,12 +62,12 @@ mempalace search "query" --wing myapp --room auth
 mempalace search "query" --results 10
 ```
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `"query"` | — | What to search for |
-| `--wing` | all | Filter by wing |
-| `--room` | all | Filter by room |
-| `--results` | `5` | Number of results |
+| Option      | Default | Description        |
+| ----------- | ------- | ------------------ |
+| `"query"`   | —       | What to search for |
+| `--wing`    | all     | Filter by wing     |
+| `--room`    | all     | Filter by room     |
+| `--results` | `5`     | Number of results  |
 
 ## `mempalace split`
 
@@ -80,12 +80,12 @@ mempalace split <dir> --min-sessions 3
 mempalace split <dir> --output-dir ~/split-output/
 ```
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `<dir>` | — | Directory with transcript files |
-| `--output-dir` | same dir | Write split files here |
-| `--dry-run` | — | Preview without writing |
-| `--min-sessions` | `2` | Only split files with N+ sessions |
+| Option           | Default  | Description                       |
+| ---------------- | -------- | --------------------------------- |
+| `<dir>`          | —        | Directory with transcript files   |
+| `--output-dir`   | same dir | Write split files here            |
+| `--dry-run`      | —        | Preview without writing           |
+| `--min-sessions` | `2`      | Only split files with N+ sessions |
 
 ## `mempalace wake-up`
 
@@ -96,8 +96,8 @@ mempalace wake-up
 mempalace wake-up --wing driftwood
 ```
 
-| Option | Description |
-|--------|-------------|
+| Option   | Description              |
+| -------- | ------------------------ |
 | `--wing` | Project-specific wake-up |
 
 ## `mempalace compress`
@@ -110,11 +110,11 @@ mempalace compress --wing myapp --dry-run
 mempalace compress --config entities.json
 ```
 
-| Option | Description |
-|--------|-------------|
-| `--wing` | Wing to compress (default: all) |
-| `--dry-run` | Preview without storing |
-| `--config` | Entity config JSON file |
+| Option      | Description                     |
+| ----------- | ------------------------------- |
+| `--wing`    | Wing to compress (default: all) |
+| `--dry-run` | Preview without storing         |
+| `--config`  | Entity config JSON file         |
 
 ## `mempalace status`
 
@@ -136,27 +136,76 @@ Creates a backup at `<palace_path>.backup` before rebuilding.
 
 ## `mempalace mcp`
 
-Helper command that outputs setup syntax (like `claude mcp add...`) to connect MemPalace to your AI client, automatically handling paths.
+Helper command that outputs setup syntax to connect MemPalace to your AI client, automatically handling paths.
 
 ```bash
 mempalace mcp
 mempalace mcp --palace ~/.custom-palace
 ```
 
+### Claude Code
+
+```bash
+claude mcp add mempalace -- mempalace-mcp
+# with custom palace:
+claude mcp add mempalace -- mempalace-mcp --palace /path/to/palace
+```
+
+### VS Code Copilot
+
+Add MemPalace to `.vscode/mcp.json` (or VS Code user settings):
+
+```json
+{
+  "servers": {
+    "mempalace": {
+      "type": "stdio",
+      "command": "mempalace-mcp"
+    }
+  }
+}
+```
+
+With a custom palace path:
+
+```json
+{
+  "servers": {
+    "mempalace": {
+      "type": "stdio",
+      "command": "mempalace-mcp",
+      "args": ["--palace", "/path/to/palace"]
+    }
+  }
+}
+```
+
+### Verify in Copilot Chat
+
+After connecting, open GitHub Copilot Chat and ask:
+
+```
+what mempalace tools are available?
+```
+
+Or call `mempalace_status` directly in a Copilot chat request.
+
 ## `mempalace hook`
 
-Run hook logic for Claude Code / Codex integration.
+Run hook logic for Claude Code, Codex, and VS Code Copilot integration.
 
 ```bash
 mempalace hook run --hook stop --harness claude-code
 mempalace hook run --hook precompact --harness claude-code
 mempalace hook run --hook session-start --harness codex
+mempalace hook run --hook stop --harness vscode-copilot
+mempalace hook run --hook precompact --harness vscode-copilot
 ```
 
-| Option | Values | Description |
-|--------|--------|-------------|
-| `--hook` | `session-start`, `stop`, `precompact` | Hook name |
-| `--harness` | `claude-code`, `codex` | Harness type |
+| Option      | Values                                                                   | Description  |
+| ----------- | ------------------------------------------------------------------------ | ------------ |
+| `--hook`    | `session-start`, `stop`, `precompact`, `subagent-start`, `subagent-stop` | Hook name    |
+| `--harness` | `claude-code`, `codex`, `vscode-copilot`                                 | Harness type |
 
 ## `mempalace instructions`
 
@@ -169,3 +218,4 @@ mempalace instructions mine
 mempalace instructions help
 mempalace instructions status
 ```
+

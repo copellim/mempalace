@@ -99,6 +99,20 @@ def test_cmd_hook_calls_run_hook():
         mock_run.assert_called_once_with(hook_name="session-start", harness="claude-code")
 
 
+def test_cmd_hook_subagent_start_vscode_copilot():
+    args = argparse.Namespace(hook="subagent-start", harness="vscode-copilot")
+    with patch("mempalace.hooks_cli.run_hook") as mock_run:
+        cmd_hook(args)
+        mock_run.assert_called_once_with(hook_name="subagent-start", harness="vscode-copilot")
+
+
+def test_cmd_hook_subagent_stop_vscode_copilot():
+    args = argparse.Namespace(hook="subagent-stop", harness="vscode-copilot")
+    with patch("mempalace.hooks_cli.run_hook") as mock_run:
+        cmd_hook(args)
+        mock_run.assert_called_once_with(hook_name="subagent-stop", harness="vscode-copilot")
+
+
 # ── cmd_init ───────────────────────────────────────────────────────────
 
 
@@ -373,6 +387,77 @@ def test_main_hook_run_dispatches():
     ):
         main()
         mock_cmd.assert_called_once()
+
+
+def test_main_hook_run_subagent_start_vscode_copilot():
+    with (
+        patch(
+            "sys.argv",
+            ["mempalace", "hook", "run", "--hook", "subagent-start", "--harness", "vscode-copilot"],
+        ),
+        patch("mempalace.cli.cmd_hook") as mock_cmd,
+    ):
+        main()
+        mock_cmd.assert_called_once()
+
+
+def test_top_level_help_mentions_vscode_copilot(monkeypatch, capsys):
+    monkeypatch.setattr(sys, "argv", ["mempalace", "--help"])
+
+    with pytest.raises(SystemExit):
+        main()
+
+    captured = capsys.readouterr()
+    assert "VS Code Copilot" in captured.out
+
+
+def test_mine_help_mode_mentions_vscode_copilot(monkeypatch, capsys):
+    monkeypatch.setattr(sys, "argv", ["mempalace", "mine", "--help"])
+
+    with pytest.raises(SystemExit):
+        main()
+
+    captured = capsys.readouterr()
+    assert "VS Code Copilot" in captured.out
+
+
+def test_main_hook_run_subagent_stop_vscode_copilot():
+    with (
+        patch(
+            "sys.argv",
+            ["mempalace", "hook", "run", "--hook", "subagent-stop", "--harness", "vscode-copilot"],
+        ),
+        patch("mempalace.cli.cmd_hook") as mock_cmd,
+    ):
+        main()
+        mock_cmd.assert_called_once()
+
+
+def test_main_hook_run_existing_harnesses_still_parse():
+    for harness in ["claude-code", "codex"]:
+        with (
+            patch(
+                "sys.argv",
+                ["mempalace", "hook", "run", "--hook", "stop", "--harness", harness],
+            ),
+            patch("mempalace.cli.cmd_hook") as mock_cmd,
+        ):
+            main()
+            mock_cmd.assert_called_once()
+
+
+def test_main_hook_run_invalid_hook_exits_2():
+    with patch("sys.argv", ["mempalace", "hook", "run", "--hook", "bogus", "--harness", "claude-code"]):
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+        assert exc_info.value.code == 2
+
+
+def test_main_hook_run_invalid_harness_exits_2():
+    with patch("sys.argv", ["mempalace", "hook", "run", "--hook", "stop", "--harness", "bogus"]):
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+        assert exc_info.value.code == 2
 
 
 def test_main_instructions_no_subcommand_prints_help(capsys):

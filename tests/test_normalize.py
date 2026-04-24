@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 from unittest.mock import patch
 
 from mempalace.normalize import (
@@ -13,6 +14,7 @@ from mempalace.normalize import (
     _try_codex_jsonl,
     _try_normalize_json,
     _try_slack_json,
+    _try_vscode_copilot_jsonl,
     normalize,
     strip_noise,
 )
@@ -1244,3 +1246,120 @@ class TestStripNoiseRemovesSystemChrome:
         assert "line two" in out
         # Should collapse to no more than 3 newlines
         assert "\n\n\n\n" not in out
+
+
+# ── _try_vscode_copilot_jsonl ──────────────────────────────────────────
+
+
+VSCODE_FIXTURES_DIR = Path(__file__).parent / "fixtures" / "vscode_copilot" / "transcripts"
+
+
+def test_vscode_simple_with_tools_normalizes():
+    content = (VSCODE_FIXTURES_DIR / "simple_with_tools.jsonl").read_text()
+    result = _try_vscode_copilot_jsonl(content)
+    assert result is not None
+    assert "> how does this project work?" in result
+    assert "This project stores verbatim memories" in result
+    assert "BM25 keyword matching" in result
+    assert "toolRequests" not in result
+    assert "reasoningText" not in result
+
+
+def test_vscode_with_precompact_context_normalizes():
+    content = (VSCODE_FIXTURES_DIR / "with_precompact_context.jsonl").read_text()
+    result = _try_vscode_copilot_jsonl(content)
+    assert result is not None
+    assert "> plan the VS Code Copilot integration for this project" in result
+    assert "> now plan the second phase: hook adaptation" in result
+    assert "Let me examine the documentation" in result
+    assert "For phase 2" in result
+
+
+def test_vscode_with_subagent_drops_subagent_chatter():
+    content = (VSCODE_FIXTURES_DIR / "with_subagent.jsonl").read_text()
+    result = _try_vscode_copilot_jsonl(content)
+    assert result is not None
+    assert "> use a subagent to read a file for me" in result
+    assert "> try again, using a subagent please" in result
+    user_turns = [line for line in result.split("\n") if line.strip().startswith("> ")]
+    assert not any("Read /home/user/projects/myapp/README.md and summarize." in t for t in user_turns)
+    assert "I will use a subagent to read the file." in result
+
+
+def test_vscode_normalize_produces_marker_format():
+    for fixture_name in [
+        "simple_with_tools.jsonl",
+        "with_precompact_context.jsonl",
+        "with_subagent.jsonl",
+    ]:
+        fixture_path = str(VSCODE_FIXTURES_DIR / fixture_name)
+        result = normalize(fixture_path)
+        user_turns = [line for line in result.split("\n") if line.strip().startswith("> ")]
+        assert len(user_turns) >= 1, f"{fixture_name} should have at least one > marker"
+
+
+def test_vscode_no_sentinel_returns_none():
+    lines = [
+        json.dumps({"type": "user.message", "data": {"content": "hello"}, "id": "e1", "parentId": None}),
+        json.dumps({"type": "assistant.message", "data": {"content": "hi"}, "id": "e2", "parentId": "e1"}),
+    ]
+    result = _try_vscode_copilot_jsonl("\n".join(lines))
+    assert result is None
+
+
+def test_vscode_wrong_producer_returns_none():
+    lines = [
+        json.dumps({"type": "session.start", "data": {"producer": "other-agent"}, "id": "e1", "parentId": None}),
+        json.dumps({"type": "user.message", "data": {"content": "hello"}, "id": "e2", "parentId": "e1"}),
+        json.dumps({"type": "assistant.message", "data": {"content": "hi"}, "id": "e3", "parentId": "e2"}),
+    ]
+    result = _try_vscode_copilot_jsonl("\n".join(lines))
+    assert result is None
+
+
+def test_vscode_too_few_messages_returns_none():
+    lines = [
+        json.dumps({"type": "session.start", "data": {"producer": "copilot-agent"}, "id": "e1", "parentId": None}),
+        json.dumps({"type": "user.message", "data": {"content": "hello"}, "id": "e2", "parentId": "e1"}),
+    ]
+    result = _try_vscode_copilot_jsonl("\n".join(lines))
+    assert result is None
+
+
+def test_vscode_tool_only_assistant_shell_excluded():
+    lines = [
+        json.dumps({"type": "session.start", "data": {"producer": "copilot-agent"}, "id": "e1"}),
+        json.dumps({"type": "user.message", "data": {"content": "Q"}, "id": "e2", "parentId": "e1"}),
+        json.dumps({"type": "assistant.message", "data": {"content": "", "toolRequests": [{"toolCallId": "t1"}]}, "id": "e3"}),
+        json.dumps({"type": "assistant.message", "data": {"content": "Real answer"}, "id": "e4"}),
+    ]
+    result = _try_vscode_copilot_jsonl("\n".join(lines))
+    assert result is not None
+    assert "Real answer" in result
+
+
+def test_vscode_consecutive_assistant_messages_merge():
+    lines = [
+        json.dumps({"type": "session.start", "data": {"producer": "copilot-agent"}, "id": "e1"}),
+        json.dumps({"type": "user.message", "data": {"content": "Q"}, "id": "e2", "parentId": "e1"}),
+        json.dumps({"type": "assistant.message", "data": {"content": "First part"}, "id": "e3"}),
+        json.dumps({"type": "assistant.message", "data": {"content": "Second part"}, "id": "e4"}),
+    ]
+    result = _try_vscode_copilot_jsonl("\n".join(lines))
+    assert result is not None
+    user_turns = [line for line in result.split("\n") if line.strip().startswith("> ")]
+    assert len(user_turns) == 1
+    assert "First part" in result
+    assert "Second part" in result
+
+
+def test_claude_code_jsonl_rejects_vscode_transcript():
+    content = (VSCODE_FIXTURES_DIR / "simple_with_tools.jsonl").read_text()
+    result = _try_claude_code_jsonl(content)
+    assert result is None
+
+
+def test_codex_jsonl_rejects_vscode_transcript():
+    content = (VSCODE_FIXTURES_DIR / "simple_with_tools.jsonl").read_text()
+    result = _try_codex_jsonl(content)
+    assert result is None

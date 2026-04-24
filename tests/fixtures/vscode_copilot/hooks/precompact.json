@@ -1,0 +1,9 @@
+{
+  "timestamp": "2026-04-23T05:14:36.734Z",
+  "hook_event_name": "PreCompact",
+  "session_id": "test-session-0002-0000-0000-000000000000",
+  "transcript_path": "/tmp/mempalace-test-transcripts/test-session-0002.jsonl",
+  "trigger": "auto",
+  "cwd": "/home/user/projects/myapp"
+}
+
